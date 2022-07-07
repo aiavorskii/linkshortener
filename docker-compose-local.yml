@@ -1,0 +1,82 @@
+version: '2'
+services:
+
+  # The Application
+  app:
+    restart: always
+    build:
+      context: ./docker
+      dockerfile: app.dockerfile
+    working_dir: /var/www
+    volumes:
+      - ./app:/var/www
+    env_file:
+      - app/.env
+    environment:
+      # debug configurations
+      PHP_XDEBUG_ENABLED: 1
+      XDEBUG_CONFIG: "client_host=192.168.242.1 mode=debug"
+      PHP_IDE_CONFIG: "serverName=docker"
+      XDEBUG_MODE: "debug"
+      DBGP_IDEKEY: "docker"
+    networks:
+      - linkshortener
+
+  # The Web Server
+  web:
+    restart: always
+    build:
+      context: ./docker
+      dockerfile: web.dockerfile
+    working_dir: /var/www
+    volumes:
+      - ./app:/var/www
+    ports:
+      - 9280:80
+    networks:
+      - linkshortener
+
+
+  # The Database
+  database:
+    image: mysql:8
+    restart: always
+    volumes:
+      - ./dbdata:/var/lib/mysql
+    environment:
+      MYSQL_DATABASE: $DB_DATABASE
+      MYSQL_USER: $DB_USERNAME
+      MYSQL_PASSWORD: $DB_PASSWORD
+      MYSQL_ROOT_PASSWORD: $DB_PASSWORD
+    command: --default-authentication-plugin=mysql_native_password
+    env_file:
+      - app/.env
+    networks:
+      - linkshortener
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      PMA_ARBITRARY: 1
+    links:
+      - database
+    ports:
+      - 9281:80
+    volumes:
+    - /sessions
+    networks:
+      - linkshortener
+
+  redis:
+    image: redis
+    networks:
+      - linkshortener
+
+networks:
+  linkshortener:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.242.0/28
