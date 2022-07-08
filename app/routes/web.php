@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\LinkController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,5 +15,11 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('welcome');
-});
+    return view('form');
+})->name('home.form');
+
+Route::post('link-create', [LinkController::class, 'store'])->name('link.store');
+
+Route::get('{hash}', [LinkController::class, 'followLink'])
+    ->where(['hash' => '[A-Za-z0-9]{8}'])
+    ->name('link.follow');

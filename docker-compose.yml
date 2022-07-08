@@ -4,6 +4,7 @@ services:
   # The Application
   app:
     restart: always
+    container_name: linkshortener_app
     build:
       context: ./docker
       dockerfile: app.dockerfile
