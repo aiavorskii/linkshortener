@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Link;
 use Carbon\Carbon;
-use Facade\FlareClient\Http\Exceptions\NotFound;
+use App\Models\Link;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
+use Illuminate\Http\JsonResponse;
+use App\Http\Requests\LinkRequest;
+use Illuminate\Support\Collection;
+use Illuminate\Http\RedirectResponse;
+use Facade\FlareClient\Http\Exceptions\NotFound;
 
 /**
  * [Description LinkController]
@@ -19,31 +20,47 @@ class LinkController extends Controller
 {
 
     /**
+     * @param Collection $data
+     *
+     * @return Collection
+     */
+    protected function formatData(Collection $data): Collection {
+        return $data->mapWithKeys(function ($value, $key) {
+            if ($key == 'lifetime') {
+                $expires = Carbon::now()->addSeconds($value * 60);
+                return ['expires' => $expires];
+            }
+
+            return [$key => $value];
+        });
+    }
+
+    /**
+     * @return string
+     */
+    protected function generateUniqueHash(): string {
+        $hash = Str::random(8);
+
+        while(Link::where('hash', $hash)->count()) {
+            $hash = Str::random(8);
+        }
+
+        return $hash;
+    }
+
+    /**
      * @param Request $request
      *
      * @return JsonResponse
      */
-    public function store(Request $request): JsonResponse
+    public function store(LinkRequest $request): JsonResponse
     {
         try {
-            $postData = collect($request->post('data'));
+            $data = collect($request->post());
+            $linkValues = $this->formatData($data);
+            $hash = $this->generateUniqueHash();
 
-            $linkValues = $postData->mapWithKeys(function ($item, $key) {
-                if ($item['name'] == 'lifetime') {
-                    $expires = Carbon::now()->addSeconds($item['value'] * 60);
-                    return ['expires' => $expires];
-                }
-
-                return [$item['name'] => $item['value']];
-            });
-
-            // ensuring we have unique hash
-            $hash = Str::random(8);
-            while(Link::where('hash', $hash)->count()) {
-                $hash = Str::random(8);
-            }
-
-            // if URL exists we just make an update for it
+            // if hash for URL exists we just make an update for it
             $link = Link::updateOrCreate([
                 'url' => $linkValues->get('url')
             ], $linkValues->toArray() + ['hash' => $hash]);
@@ -54,7 +71,7 @@ class LinkController extends Controller
         } catch (\Exception $e) {
             return new JsonResponse([
                 'message' => $e->getMessage()
-            ]);
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -66,6 +83,7 @@ class LinkController extends Controller
     public function followLink(Request $request)
     {
         $hash = $request->route('hash');
+
         if ($link = Link::where('hash', $hash)->first()) {
             if ($link->hit_limit && $link->hit_limit > $link->hit_count) {
                 $link->hit_count++;

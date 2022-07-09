@@ -17,5 +17,6 @@
             </div>
         </div>
         <script src="/app.js"></script>
+        @yield('modals')
     </body>
 </html>
